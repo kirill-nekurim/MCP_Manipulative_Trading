@@ -4,6 +4,8 @@
 
 **Репозиторий:** https://github.com/kirill-nekurim/MCP_Manipulative_Trading
 
+**После клона:** `pip install -r requirements.txt` → `python src/ingest.py --reset` → команды из раздела [«Для проверяющего»](#для-проверяющего-воспроизведение) ниже. Для агента — `.env` по `.env.example` (нужен `GIGACHAT_CREDENTIALS`).
+
 ## Структура
 
 ```
@@ -41,6 +43,15 @@ MCP_Manipulative_Trading/
 **MCP-инструмент:** `chroma_query_documents` · коллекция `market_manipulation_kb`
 
 ## Для проверяющего (воспроизведение)
+
+```bash
+pip install -r requirements.txt
+python src/ingest.py --reset
+python src/mcp_search_demo.py -q "What is spoofing?" --k 3
+python src/run_eval.py                    # eval уже в eval/report.md
+cp .env.example .env                      # только для agent_demo
+python src/agent_demo.py -q "What is spoofing?" --k 3
+```
 
 | Шаг | Команда / файл |
 |-----|----------------|
