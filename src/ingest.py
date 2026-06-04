@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""
-Index markdown corpus into a local persistent Chroma collection.
-
-Chunks are split by level-2 headings (##). Each chunk gets stable IDs and metadata
-required by the homework: document_id, chunk_id, source, section, chunk_index, etc.
-"""
+"""Index markdown corpus into a local persistent Chroma collection."""
 
 from __future__ import annotations
 
@@ -13,15 +8,12 @@ import re
 from pathlib import Path
 from typing import Any
 
-DOCS_DIR = Path(__file__).parent / "docs"
-CHROMA_PATH = Path(__file__).parent / "chroma_db"
-COLLECTION_NAME = "market_manipulation_kb"
+from config import CHROMA_PATH, COLLECTION_NAME, DOCS_DIR
 
 META_LINE = re.compile(r"^\*\*(.+?):\*\*\s*(.*)$")
 
 
 def parse_metadata(header_lines: list[str]) -> dict[str, str]:
-    """Parse **Key:** value lines from document header."""
     meta: dict[str, str] = {}
     for line in header_lines:
         match = META_LINE.match(line.strip())
@@ -38,10 +30,6 @@ def slugify_section(title: str) -> str:
 
 
 def split_by_sections(text: str) -> tuple[str | None, list[tuple[str, str]]]:
-    """
-    Split markdown body into (title, [(section_heading, section_body), ...]).
-    Sections start at ## headings.
-    """
     lines = text.splitlines()
     title: str | None = None
     header_end = 0
@@ -54,18 +42,6 @@ def split_by_sections(text: str) -> tuple[str | None, list[tuple[str, str]]]:
         if line.startswith("## "):
             header_end = i
             break
-        if i > 0 and line.startswith("## "):
-            header_end = i
-            break
-
-    header_lines = lines[1:header_end] if title else lines[:header_end]
-    meta_end = header_end
-    # Metadata block is only **Key:** lines right after title
-    if title:
-        for j in range(1, header_end):
-            if lines[j].strip() and not META_LINE.match(lines[j].strip()):
-                meta_end = j
-                break
 
     body_lines = lines[header_end:]
     sections: list[tuple[str, str]] = []
@@ -92,7 +68,6 @@ def split_by_sections(text: str) -> tuple[str | None, list[tuple[str, str]]]:
 
 
 def load_document(path: Path, docs_root: Path) -> list[dict[str, Any]]:
-    """Load one markdown file and return chunk records."""
     raw = path.read_text(encoding="utf-8")
     title, sections = split_by_sections(raw)
 
@@ -120,36 +95,35 @@ def load_document(path: Path, docs_root: Path) -> list[dict[str, Any]]:
     chunks: list[dict[str, Any]] = []
     for index, (section, body) in enumerate(sections, start=1):
         chunk_id = f"{document_id}_chunk_{index:02d}"
-        # Prefix helps retrieval tie text to section heading
         document_text = f"## {section}\n\n{body}"
 
-        record: dict[str, Any] = {
-            "id": chunk_id,
-            "document": document_text,
-            "metadata": {
-                "document_id": document_id,
-                "chunk_id": chunk_id,
-                "source": source,
-                "section": section,
-                "section_slug": slugify_section(section),
-                "chunk_index": index,
-                "title": title or path.stem,
-                "document_type": doc_type,
-                "url": url,
-                "language": language,
-                "last_updated": last_updated,
-                "file_path": source,
-            },
-        }
-        chunks.append(record)
+        chunks.append(
+            {
+                "id": chunk_id,
+                "document": document_text,
+                "metadata": {
+                    "document_id": document_id,
+                    "chunk_id": chunk_id,
+                    "source": source,
+                    "section": section,
+                    "section_slug": slugify_section(section),
+                    "chunk_index": index,
+                    "title": title or path.stem,
+                    "document_type": doc_type,
+                    "url": url,
+                    "language": language,
+                    "last_updated": last_updated,
+                    "file_path": source,
+                },
+            }
+        )
 
     return chunks
 
 
 def collect_chunks(docs_dir: Path) -> list[dict[str, Any]]:
     all_chunks: list[dict[str, Any]] = []
-    md_files = sorted(docs_dir.rglob("*.md"))
-    for path in md_files:
+    for path in sorted(docs_dir.rglob("*.md")):
         file_chunks = load_document(path, docs_dir)
         if not file_chunks:
             print(f"  skip (no ## sections): {path.relative_to(docs_dir.parent)}")
@@ -160,7 +134,6 @@ def collect_chunks(docs_dir: Path) -> list[dict[str, Any]]:
 
 
 def chroma_metadata(meta: dict[str, Any]) -> dict[str, str | int | float | bool]:
-    """Chroma accepts only scalar metadata; drop empty strings."""
     cleaned: dict[str, str | int | float | bool] = {}
     for key, value in meta.items():
         if value is None or value == "":
@@ -215,28 +188,10 @@ def ingest(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Index docs/ into Chroma")
-    parser.add_argument(
-        "--docs-dir",
-        type=Path,
-        default=DOCS_DIR,
-        help="Root directory with markdown corpus (default: ./docs)",
-    )
-    parser.add_argument(
-        "--chroma-path",
-        type=Path,
-        default=CHROMA_PATH,
-        help="Persistent Chroma storage path (default: ./chroma_db)",
-    )
-    parser.add_argument(
-        "--collection",
-        default=COLLECTION_NAME,
-        help=f"Collection name (default: {COLLECTION_NAME})",
-    )
-    parser.add_argument(
-        "--reset",
-        action="store_true",
-        help="Delete and recreate the collection before indexing",
-    )
+    parser.add_argument("--docs-dir", type=Path, default=DOCS_DIR)
+    parser.add_argument("--chroma-path", type=Path, default=CHROMA_PATH)
+    parser.add_argument("--collection", default=COLLECTION_NAME)
+    parser.add_argument("--reset", action="store_true")
     args = parser.parse_args()
 
     if not args.docs_dir.is_dir():

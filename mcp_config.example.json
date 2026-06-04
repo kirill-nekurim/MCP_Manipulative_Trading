@@ -7,7 +7,7 @@
         "--client-type",
         "persistent",
         "--data-dir",
-        "/ABSOLUTE/PATH/TO/hw4/chroma_db"
+        "/ABSOLUTE/PATH/TO/MCP_Manipulative_Trading/chroma_db"
       ]
     }
   }

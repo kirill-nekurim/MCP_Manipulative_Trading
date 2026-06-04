@@ -8,8 +8,7 @@ from pathlib import Path
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-COLLECTION_NAME = "market_manipulation_kb"
-MCP_TOOL = "chroma_query_documents"
+from config import COLLECTION_NAME, MCP_TOOL
 
 
 def chroma_server_params(chroma_path: Path) -> StdioServerParameters:

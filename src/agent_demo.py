@@ -1,19 +1,5 @@
 #!/usr/bin/env python3
-"""
-LangChain agent with GigaChat + MCP search (chroma-mcp).
-
-GigaChat does not accept the raw MCP tool JSON schema (anyOf/Union).
-The agent uses a thin wrapper `search_knowledge_base` that calls MCP
-`chroma_query_documents` under the hood.
-
-Prerequisites:
-  1. cp .env.example .env  and set GIGACHAT_CREDENTIALS
-  2. python ingest.py --reset
-  3. uvx available for chroma-mcp
-
-Usage:
-    python agent_demo.py --query "Find top-3 fragments about spoofing" --k 3
-"""
+"""LangChain agent with GigaChat + MCP search (chroma-mcp)."""
 
 from __future__ import annotations
 
@@ -29,16 +15,10 @@ from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from langchain_gigachat.chat_models import GigaChat
 
-from mcp_chroma import (
-    MCP_TOOL,
-    format_results_for_agent,
-    query_documents,
-)
+from config import CHROMA_PATH, COLLECTION_NAME, ENV_FILE, TEXT_PREVIEW_LEN
+from mcp_chroma import MCP_TOOL, format_results_for_agent, query_documents
 
-PROJECT_ROOT = Path(__file__).parent
-CHROMA_PATH = PROJECT_ROOT / "chroma_db"
 AGENT_TOOL = "search_knowledge_base"
-TEXT_PREVIEW_LEN = 280
 
 AGENT_INSTRUCTION = """You are a knowledge-base assistant for market manipulation documents.
 
@@ -54,13 +34,13 @@ Use only data returned by the tool. Do not invent sources.
 def build_model() -> GigaChat:
     credentials = os.getenv("GIGACHAT_CREDENTIALS")
     if not credentials:
-        raise SystemExit(
-            "GIGACHAT_CREDENTIALS is not set. Copy .env.example to .env and add your API key."
-        )
+        raise SystemExit("Set GIGACHAT_CREDENTIALS in .env (see .env.example).")
 
-    verify_raw = os.getenv("GIGACHAT_VERIFY_SSL_CERTS", "false").lower()
-    verify_ssl = verify_raw in ("1", "true", "yes")
-
+    verify_ssl = os.getenv("GIGACHAT_VERIFY_SSL_CERTS", "false").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     kwargs: dict = {
         "credentials": credentials,
         "scope": os.getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS"),
@@ -68,19 +48,13 @@ def build_model() -> GigaChat:
         "verify_ssl_certs": verify_ssl,
         "temperature": 0.1,
     }
-    ca_bundle = os.getenv("GIGACHAT_CA_BUNDLE_FILE")
-    if ca_bundle:
-        kwargs["ca_bundle_file"] = ca_bundle
-
+    if ca := os.getenv("GIGACHAT_CA_BUNDLE_FILE"):
+        kwargs["ca_bundle_file"] = ca
     return GigaChat(**kwargs)
 
 
-def make_search_tool(chroma_path: Path, user_query: str, k: int):
-    """Tool without free-form query arg — GigaChat tends to translate to Russian, but
-    Chroma embeddings (all-MiniLM-L6-v2) work much better on English."""
-
+def make_search_tool(chroma_path, user_query: str, k: int):
     async def search_knowledge_base() -> str:
-        """Search the knowledge base for the current user question via MCP chroma_query_documents."""
         payload = await query_documents(chroma_path, user_query, k)
         return format_results_for_agent(user_query, k, payload)
 
@@ -89,7 +63,7 @@ def make_search_tool(chroma_path: Path, user_query: str, k: int):
         name=AGENT_TOOL,
         description=(
             "Search the knowledge base for the user's current question. "
-            f"Uses MCP tool {MCP_TOOL}. Returns document_id, chunk_id, source, score, text."
+            f"Uses MCP tool {MCP_TOOL}."
         ),
     )
 
@@ -101,8 +75,7 @@ def print_tool_search_results(tool_name: str, raw: str) -> None:
         print(f"\n[{tool_name}] (non-JSON)\n{raw[:500]}")
         return
 
-    mcp_tool = data.get("mcp_tool", MCP_TOOL)
-    print(f"\n--- Agent tool: {tool_name} → MCP: {mcp_tool} ---")
+    print(f"\n--- Agent tool: {tool_name} → MCP: {data.get('mcp_tool', MCP_TOOL)} ---")
     for rank, hit in enumerate(data.get("results", []), start=1):
         print(
             f"{rank}. document_id={hit.get('document_id')}, "
@@ -112,8 +85,7 @@ def print_tool_search_results(tool_name: str, raw: str) -> None:
         preview = (hit.get("text") or "").replace("\n", " ").strip()
         if len(preview) > TEXT_PREVIEW_LEN:
             preview = preview[:TEXT_PREVIEW_LEN] + "..."
-        print(f"   text={preview}")
-    print()
+        print(f"   text={preview}\n")
 
 
 def print_agent_trace(messages: list) -> None:
@@ -121,55 +93,42 @@ def print_agent_trace(messages: list) -> None:
     for msg in messages:
         if isinstance(msg, ToolMessage):
             print_tool_search_results(msg.name or AGENT_TOOL, msg.content)
-        elif isinstance(msg, AIMessage):
-            text = msg.content
-            if isinstance(text, list):
-                text = str(text)
-            if text and str(text).strip():
+        elif isinstance(msg, AIMessage) and msg.content:
+            text = str(msg.content) if not isinstance(msg.content, str) else msg.content
+            if text.strip():
                 print(f"[assistant]\n{text}\n")
 
 
-async def run_agent(query: str, k: int, chroma_path: Path) -> None:
+async def run_agent(query: str, k: int, chroma_path) -> None:
     if not chroma_path.is_dir():
-        raise SystemExit(f"Index not found at {chroma_path}. Run: python ingest.py --reset")
+        raise SystemExit("chroma_db missing. Run: python src/ingest.py --reset")
 
-    model = build_model()
-    tools = [make_search_tool(chroma_path, user_query=query, k=k)]
-    agent = create_agent(model, tools)
-
+    agent = create_agent(build_model(), [make_search_tool(chroma_path, query, k)])
     prompt = (
         AGENT_INSTRUCTION.format(
             tool_name=AGENT_TOOL,
             mcp_tool=MCP_TOOL,
-            collection="market_manipulation_kb",
+            collection=COLLECTION_NAME,
             k=k,
         )
         + f"\nUser request: {query}"
     )
 
-    print(f"Query: {query}")
-    print(f"Top-k: {k}")
+    print(f"Query: {query}\nTop-k: {k}")
     print(f"Model: {os.getenv('GIGACHAT_MODEL', 'GigaChat')}")
     print(f"Agent tool: {AGENT_TOOL} → MCP: {MCP_TOOL}")
     print(f"Chroma search query (from CLI): {query}")
 
     result = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
-    messages = result.get("messages", [])
-    print_agent_trace(messages)
+    print_agent_trace(result.get("messages", []))
 
 
 def main() -> None:
-    load_dotenv(PROJECT_ROOT / ".env")
-
-    parser = argparse.ArgumentParser(description="GigaChat agent + Chroma MCP search")
-    parser.add_argument("--query", "-q", required=True, help="User question")
-    parser.add_argument("--k", type=int, default=3, help="Number of fragments")
-    parser.add_argument(
-        "--chroma-path",
-        type=Path,
-        default=CHROMA_PATH,
-        help="Chroma persistence directory",
-    )
+    load_dotenv(ENV_FILE)
+    parser = argparse.ArgumentParser(description="GigaChat agent + MCP search")
+    parser.add_argument("--query", "-q", required=True)
+    parser.add_argument("--k", type=int, default=3)
+    parser.add_argument("--chroma-path", type=Path, default=CHROMA_PATH)
     args = parser.parse_args()
 
     if args.k < 1:
