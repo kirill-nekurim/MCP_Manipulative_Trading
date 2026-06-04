@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "knowledge_base": {
+      "command": "uvx",
+      "args": [
+        "chroma-mcp",
+        "--client-type",
+        "persistent",
+        "--data-dir",
+        "/ABSOLUTE/PATH/TO/hw4/chroma_db"
+      ]
+    }
+  }
+}

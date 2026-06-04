@@ -1,0 +1,19 @@
+id,query_type,query,expected_document_id,notes
+1,exact_fact,What is wash trading?,wash_trading,Definition of wash trading
+2,terminology,Define spoofing in financial markets,spoofing|spoofing_detection,Core definition
+3,specific_document,How does a pump and dump scheme work step by step?,pump_and_dump|pump_and_dump_detection,Stages of the scheme
+4,broad_semantic,What manipulation schemes are listed in the knowledge base overview?,knowledge_base_overview,Overview / catalog question
+5,negative,Who is the CEO of JPMorgan wash trading compliance team?,none,No answer in corpus
+6,multi_source,How do regulators detect spoofing?,spoofing_detection|spoofing,Detection + definition
+7,metadata_source,Which document describes marking the close from CFA Institute?,marking_the_close,Source / metadata focus
+8,detection_method,Wash trading detection indicators and patterns,wash_trading_detection,Detection doc
+9,exact_fact,Why do closing prices matter for marking the close?,marking_the_close|marking_the_close_detection,Closing price mechanism
+10,negative,What are MiFID III position limits for carbon credits?,none,Outside corpus
+11,terminology,What is layering in the order book related to spoofing?,spoofing,Layering / order book
+12,specific_document,Pump and dump use of Telegram and social media,pump_and_dump,Social media section
+13,broad_semantic,Definition versus detection documents in the corpus,knowledge_base_overview,Structure of the KB
+14,multi_source,Difference between wash trading definition and detection,wash_trading|wash_trading_detection,Pair of related docs
+15,detection_method,Spoofing surveillance patterns FINRA cross-market,spoofing_detection,Regulatory detection
+16,negative,How to file personal income tax in Russia for traders?,none,Unrelated topic
+17,metadata_source,How many manipulation types and documents does knowledge_base_overview describe?,knowledge_base_overview,Overview statistics
+18,exact_fact,What happens in the dump phase of pump and dump?,pump_and_dump|pump_and_dump_detection,Dump phase
